@@ -203,9 +203,7 @@ func main() {
 					worry = worry * uint64(m.operand)
 				}
 
-				for worry > FUDGE {
-					worry -= FUDGE
-				}
+				worry %= FUDGE
 
 				target := monkeys[m.falseDest]
 				if worry%uint64(m.divisor) == 0 {
