@@ -102,11 +102,18 @@ func readFile(filename string, grid [][]int8, start Pair, extent Pair) {
 	}
 }
 
+func drawFloor(grid [][]int8, start Pair, extent Pair) {
+	y := len(grid) - 1
+	for x := 0; x < len(grid[y]); x++ {
+		grid[y][x] = '#'
+	}
+}
+
 func main() {
 	min, max := scanFile(os.Args[1])
 
-	start := Pair{x: min.x - 1, y: min.y}
-	extent := Pair{x: max.x - min.x + 3, y: max.y + 1}
+	start := Pair{x: min.x - 201, y: min.y}
+	extent := Pair{x: max.x - min.x + 403, y: max.y + 3}
 
 	grid := make([][]int8, extent.y)
 	for i := 0; i < extent.y; i++ {
@@ -116,6 +123,7 @@ func main() {
 	fmt.Println(start, extent)
 
 	readFile(os.Args[1], grid, start, extent)
+	drawFloor(grid, start, extent)
 
 	count := dumpSand(grid, start)
 
@@ -160,6 +168,9 @@ func dumpSand(grid [][]int8, start Pair) int {
 // index into the array without worrying about the offset.
 func dropSand(grid [][]int8, start Pair) (Pair, bool) {
 	loc := start
+	if grid[start.y][start.x] != 0 {
+		return Pair{}, false
+	}
 	for {
 		if loc.y == len(grid)-1 {
 			return Pair{}, false
