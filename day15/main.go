@@ -14,6 +14,17 @@ type Pair struct {
 	y int
 }
 
+type Span struct {
+	low  int
+	high int
+}
+
+type Sensor struct {
+	Pair
+	beacon Pair
+	dist   int
+}
+
 // Sensor at x=655450, y=2013424: closest beacon is at x=967194, y=2000000
 func parseLine(s string) (Pair, Pair) {
 	sensor := Pair{}
@@ -62,10 +73,7 @@ func manhattan(a, b Pair) int {
 	return abs(a.x-b.x) + abs(a.y-b.y)
 }
 
-func scanFile(filename string) (Pair, Pair) {
-
-	min := Pair{x: math.MaxInt, y: math.MaxInt}
-	max := Pair{x: math.MinInt, y: math.MinInt}
+func readFile(filename string) []Sensor {
 
 	f, err := os.Open(filename)
 	if err != nil {
@@ -73,6 +81,7 @@ func scanFile(filename string) (Pair, Pair) {
 	}
 	defer f.Close()
 	scan := bufio.NewScanner(f)
+	sensors := []Sensor{}
 	for scan.Scan() {
 		t := scan.Text()
 		if strings.TrimSpace(t) == "" {
@@ -80,104 +89,68 @@ func scanFile(filename string) (Pair, Pair) {
 		}
 		s, b := parseLine(t)
 
-		dist := manhattan(s, b)
-		if min.x > s.x-dist {
-			min.x = s.x - dist
-		}
-		if min.y > s.y-dist {
-			min.y = s.y - dist
-		}
-		if max.x < s.x+dist {
-			max.x = s.x + dist
-		}
-		if max.y < s.y+dist {
-			max.y = s.y + dist
-		}
-	}
-	return min, max
-}
+		sensor := Sensor{Pair: s, beacon: b, dist: manhattan(s, b)}
 
-func fillGrid(grid [][]int8, min Pair, sensor Pair, beacon Pair) {
-	grid[sensor.y-min.y][sensor.x-min.x] = 'S'
-	grid[beacon.y-min.y][beacon.x-min.x] = 'B'
-
-	dist := manhattan(sensor, beacon)
-	for y_delta := -dist; y_delta <= dist; y_delta++ {
-		diff := dist - abs(y_delta)
-		for x_delta := -diff; x_delta <= diff; x_delta++ {
-			if grid[y_delta+sensor.y-min.y][x_delta+sensor.x-min.x] == 0 {
-				grid[y_delta+sensor.y-min.y][x_delta+sensor.x-min.x] = '#'
-			}
-		}
-	}
-
-}
-
-func readFile(filename string, grid [][]int8, min Pair) []Pair {
-
-	f, err := os.Open(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-	scan := bufio.NewScanner(f)
-	sensors := []Pair{}
-	for scan.Scan() {
-		t := scan.Text()
-		if strings.TrimSpace(t) == "" {
-			continue
-		}
-		s, b := parseLine(t)
-
-		sensors = append(sensors, s)
-
-		fillGrid(grid, min, s, b)
+		sensors = append(sensors, sensor)
 	}
 	return sensors
 }
 
+const rownum = 2000000
+
 func main() {
-	min, max := scanFile(os.Args[1])
-	fmt.Printf("min = (%d,%d)\n", min.x, min.y)
-	fmt.Printf("max = (%d,%d)\n", max.x, max.y)
 
-	var grid [][]int8
-	for i := min.y; i <= max.y; i++ {
-		grid = append(grid, make([]int8, max.x-min.x+1))
-	}
-
-	readFile(os.Args[1], grid, min)
+	sensors := readFile(os.Args[1])
 
 	//printGrid(grid, min)
 
-	row := 10
-	fmt.Printf("Number of non-beacons for row %d = %d\n", row, nonbeacons(grid, min, row))
-	row = 2000000
-	fmt.Printf("Number of non-beacons for row %d = %d\n", row, nonbeacons(grid, min, row))
+	spans := []Span{}
 
-}
-
-func printGrid(grid [][]int8, min Pair) {
-	for i := 0; i < len(grid); i++ {
-		for j := 0; j < len(grid[0]); j++ {
-			if grid[i][j] == 0 {
-				fmt.Printf(".")
-			} else {
-				fmt.Printf("%c", grid[i][j])
-			}
+	for _, s := range sensors {
+		sp, ok := getSpan(s, rownum)
+		if ok {
+			spans = append(spans, sp)
 		}
-		fmt.Println()
 	}
-
-}
-
-func nonbeacons(grid [][]int8, min Pair, row int) int {
+	min := math.MaxInt
+	max := math.MinInt
+	for _, s := range spans {
+		if s.low < min {
+			min = s.low
+		}
+		if s.high > max {
+			max = s.high
+		}
+	}
+	row := make([]byte, max-min+1)
+	for _, s := range spans {
+		for i := s.low; i <= s.high; i++ {
+			row[i-min] = '#'
+		}
+	}
+	for _, s := range sensors {
+		if s.beacon.y == rownum {
+			row[s.beacon.x-min] = 'B'
+			fmt.Printf("Beacon at %d,%d\n", s.beacon.x, s.beacon.y)
+		}
+		if s.y == rownum {
+			row[s.x-min] = 'S'
+			fmt.Printf("Sensor at %d,%d\n", s.x, s.y)
+		}
+	}
 	count := 0
-	for i := 0; i < len(grid[0]); i++ {
-		cell := grid[row-min.y][i]
-		if cell == '#' || cell == 'S' {
+	for _, c := range row {
+		if c == '#' || c == 'S' {
 			count++
 		}
 	}
-	return count
+	fmt.Printf("Row %d has %d non-beacons\n", rownum, count)
+}
+
+func getSpan(s Sensor, row int) (Span, bool) {
+	delta := s.dist - abs(s.y-row)
+	if delta < 0 {
+		return Span{}, false
+	}
+	return Span{low: s.x - delta, high: s.x + delta}, true
 }
