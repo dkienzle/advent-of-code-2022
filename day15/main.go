@@ -97,13 +97,10 @@ func readFile(filename string) []Sensor {
 }
 
 const rownum = 2000000
+const minsearch = 0
+const maxsearch = 4000000
 
-func main() {
-
-	sensors := readFile(os.Args[1])
-
-	//printGrid(grid, min)
-
+func getRow(sensors []Sensor, rownum int) ([]byte, int) {
 	spans := []Span{}
 
 	for _, s := range sensors {
@@ -131,13 +128,23 @@ func main() {
 	for _, s := range sensors {
 		if s.beacon.y == rownum {
 			row[s.beacon.x-min] = 'B'
-			fmt.Printf("Beacon at %d,%d\n", s.beacon.x, s.beacon.y)
+			//fmt.Printf("Beacon at %d,%d\n", s.beacon.x, s.beacon.y)
 		}
 		if s.y == rownum {
 			row[s.x-min] = 'S'
-			fmt.Printf("Sensor at %d,%d\n", s.x, s.y)
+			//fmt.Printf("Sensor at %d,%d\n", s.x, s.y)
 		}
 	}
+	return row, min
+}
+
+func main() {
+
+	sensors := readFile(os.Args[1])
+
+	//printGrid(grid, min)
+
+	row, _ := getRow(sensors, rownum)
 	count := 0
 	for _, c := range row {
 		if c == '#' || c == 'S' {
@@ -145,6 +152,20 @@ func main() {
 		}
 	}
 	fmt.Printf("Row %d has %d non-beacons\n", rownum, count)
+
+	for y := minsearch; y <= maxsearch; y++ {
+		row, min := getRow(sensors, y)
+		max := min + len(row) - 1
+		for x := minsearch; x <= maxsearch; x++ {
+			if x < min || x > max {
+				log.Fatal("Row", y, "Col", x, "out of row")
+			}
+			if row[x-min] == 0 {
+				fmt.Printf("Found %d,%d = %d\n", x, y, x*4000000+y)
+			}
+		}
+	}
+
 }
 
 func getSpan(s Sensor, row int) (Span, bool) {
