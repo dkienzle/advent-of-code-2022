@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -96,7 +97,7 @@ func readFile(filename string) []Sensor {
 	return sensors
 }
 
-const rownum = 2000000
+const rownum = 10000
 const minsearch = 0
 const maxsearch = 4000000
 
@@ -154,15 +155,10 @@ func main() {
 	fmt.Printf("Row %d has %d non-beacons\n", rownum, count)
 
 	for y := minsearch; y <= maxsearch; y++ {
-		row, min := getRow(sensors, y)
-		max := min + len(row) - 1
-		for x := minsearch; x <= maxsearch; x++ {
-			if x < min || x > max {
-				log.Fatal("Row", y, "Col", x, "out of row")
-			}
-			if row[x-min] == 0 {
-				fmt.Printf("Found %d,%d = %d\n", x, y, x*4000000+y)
-			}
+		p := checkRow(sensors, y)
+		if p != nil {
+			fmt.Printf("Found %d,%d = %d\n", p.x, p.y, p.x*4000000+p.y)
+			//break
 		}
 	}
 
@@ -174,4 +170,30 @@ func getSpan(s Sensor, row int) (Span, bool) {
 		return Span{}, false
 	}
 	return Span{low: s.x - delta, high: s.x + delta}, true
+}
+
+func checkRow(sensors []Sensor, rownum int) *Pair {
+	spans := []Span{}
+	//fmt.Println("Checking row", rownum)
+	for _, s := range sensors {
+		sp, ok := getSpan(s, rownum)
+		if ok {
+			spans = append(spans, sp)
+		}
+	}
+	sort.Slice(spans, func(i, j int) bool { return spans[i].low < spans[j].low })
+	offset := minsearch
+	for _, sp := range spans {
+		//fmt.Printf("\t[%d,%d]\n", sp.low, sp.high)
+		if offset < sp.low {
+			return &Pair{x: offset, y: rownum}
+		}
+		if offset < sp.high+1 {
+			offset = sp.high + 1
+		}
+		if offset > maxsearch {
+			return nil
+		}
+	}
+	return &Pair{x: offset, y: rownum}
 }
